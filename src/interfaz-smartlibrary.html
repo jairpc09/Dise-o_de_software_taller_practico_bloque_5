@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartLibrary – Renovación de préstamos</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#E9EEF2;--card:#fff;--ink:#16202E;--mute:#5B6878;--line:#CBD5DF;--ok:#0F766E;--okbg:#DDF3EF;--err:#B42318;--errbg:#FDE8E6;--stamp:#2B3A8C}
+@media (prefers-color-scheme:dark){:root{--bg:#0F1620;--card:#18222F;--ink:#E8EDF3;--mute:#9AA8B8;--line:#2C3A4B;--ok:#4FD1C0;--okbg:#10332F;--err:#FF8A80;--errbg:#3A1C1A;--stamp:#8FA0FF}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,sans-serif;line-height:1.5}
+header{padding:20px clamp(16px,4vw,48px);display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px}
+h1{font-size:1.4rem;margin:0;font-weight:800}
+header span{color:var(--mute);font-size:.9rem}
+main{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:20px;padding:0 clamp(16px,4vw,48px) 40px;max-width:1100px;margin:auto}
+@media(max-width:800px){main{grid-template-columns:1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px}
+h2{font-size:1rem;margin:0 0 12px;font-weight:600}
+.meta{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.92rem;margin:0 0 18px}
+.meta dt{color:var(--mute)} .meta dd{margin:0;font-weight:600}
+.slip{border:2px dashed var(--line);border-radius:6px;padding:14px 16px;font-family:"Special Elite",ui-monospace,monospace;margin-bottom:18px}
+.slip p{margin:0 0 6px;color:var(--mute);font-size:.85rem}
+.slip ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px}
+.slip li{font-size:1.1rem;text-decoration:line-through;color:var(--mute)}
+.slip li.now{text-decoration:none;color:var(--stamp);border:2px solid var(--stamp);padding:0 8px;transform:rotate(-2deg);font-size:1.3rem}
+.slip li.now.pulse{animation:stamp .4s ease-out}
+@keyframes stamp{from{transform:rotate(-2deg) scale(1.5);opacity:0}to{transform:rotate(-2deg) scale(1);opacity:1}}
+label{display:block;font-weight:600;font-size:.92rem;margin-bottom:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=date]{flex:1;min-width:150px;font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+button{font:inherit;font-weight:600;padding:9px 16px;border:0;border-radius:6px;background:var(--ink);color:var(--card);cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+:focus-visible{outline:3px solid var(--stamp);outline-offset:2px}
+.msg{margin-top:12px;padding:10px 12px;border-radius:6px;font-size:.92rem;min-height:1px}
+.msg.ok{background:var(--okbg);color:var(--ok)} .msg.err{background:var(--errbg);color:var(--err)}
+.hint{font-size:.82rem;color:var(--mute);margin:6px 0 0}
+ol.hist,ul.inbox{list-style:none;margin:0;padding:0}
+.hist li{padding:10px 0;border-top:1px solid var(--line);font-size:.92rem}
+.hist li:first-child{border-top:0}
+.hist b{font-weight:600}
+.inbox li{background:var(--bg);border-left:4px solid var(--stamp);padding:8px 12px;margin-bottom:8px;border-radius:0 6px 6px 0;font-size:.92rem}
+.inbox small{display:block;color:var(--mute)}
+.empty{color:var(--mute);font-size:.92rem;margin:0}
+.side{display:flex;flex-direction:column;gap:20px}
+</style>
+</head>
+<body>
+<header>
+  <h1>SmartLibrary</h1>
+  <span>Mostrador de préstamos</span>
+</header>
+
+<main>
+  <section aria-labelledby="t-prestamo">
+    <h2 id="t-prestamo">Préstamo activo</h2>
+    <dl class="meta">
+      <dt>Estudiante</dt><dd id="est"></dd>
+      <dt>Libro</dt><dd id="lib"></dd>
+      <dt>Ejemplar</dt><dd id="eje"></dd>
+    </dl>
+
+    <div class="slip" aria-live="polite">
+      <p>Fecha de devolución</p>
+      <ul id="slip"></ul>
+    </div>
+
+    <label for="nueva">Nueva fecha de devolución</label>
+    <div class="row">
+      <input type="date" id="nueva">
+      <button id="renovar">Renovar préstamo</button>
+      <button id="reset" class="alt">Reiniciar demo</button>
+    </div>
+    <p class="hint">La nueva fecha debe ser posterior a la fecha vigente.</p>
+    <div id="msg" class="msg" role="status"></div>
+  </section>
+
+  <div class="side">
+    <section aria-labelledby="t-hist">
+      <h2 id="t-hist">Historial de renovaciones (<span id="cnt">0</span>)</h2>
+      <ol class="hist" id="hist"></ol>
+    </section>
+    <section aria-labelledby="t-bandeja">
+      <h2 id="t-bandeja">Notificaciones del estudiante</h2>
+      <ul class="inbox" id="inbox"></ul>
+    </section>
+  </div>
+</main>
+
+<script>
+// Réplica de la lógica de las clases Java del taller
+class Renovacion {
+  constructor(fechaRenovacion, fechaAnterior, nuevaFecha) {
+    Object.assign(this, {fechaRenovacion, fechaAnterior, nuevaFecha});
+    Object.freeze(this); // inmutable, como en Java
+  }
+}
+class Estudiante { // implements Notificable
+  constructor(nombre, correo) { this.nombre = nombre; this.correo = correo; this.bandeja = []; }
+  notificar(mensaje) { this.bandeja.unshift({mensaje, hora: new Date().toLocaleTimeString("es-CO")}); }
+}
+class Prestamo {
+  #renovaciones = [];
+  constructor(estudiante, ejemplar, fechaPrevista) {
+    this.estudiante = estudiante; this.ejemplar = ejemplar; this.fechaPrevista = fechaPrevista;
+  }
+  get renovaciones() { return [...this.#renovaciones]; }
+  renovar(nuevaFecha) {
+    if (!nuevaFecha || nuevaFecha <= this.fechaPrevista) // ISO yyyy-mm-dd se compara como texto
+      throw new Error("La nueva fecha (" + (nuevaFecha || "vacía") + ") debe ser posterior a la fecha vigente (" + this.fechaPrevista + ").");
+    this.#renovaciones.push(new Renovacion(new Date().toISOString().slice(0,10), this.fechaPrevista, nuevaFecha));
+    this.fechaPrevista = nuevaFecha;
+  }
+}
+
+const INICIAL = "2026-10-07";
+let estudiante, prestamo;
+const $ = id => document.getElementById(id);
+
+function iniciar() {
+  estudiante = new Estudiante("Cristian", "cristian@correo.edu.co");
+  prestamo = new Prestamo(estudiante, {codigo: "EJ-0001", libro: "Clean Code – Robert C. Martin"}, INICIAL);
+  $("est").textContent = estudiante.nombre;
+  $("lib").textContent = prestamo.ejemplar.libro;
+  $("eje").textContent = prestamo.ejemplar.codigo;
+  $("nueva").value = "";
+  mensaje("", "");
+  pintar(false);
+}
+
+function pintar(animar) {
+  const r = prestamo.renovaciones;
+  const fechas = r.length ? [r[0].fechaAnterior, ...r.map(x => x.nuevaFecha)] : [prestamo.fechaPrevista];
+  $("slip").innerHTML = fechas.map((f, i) =>
+    '<li' + (i === fechas.length - 1 ? ' class="now' + (animar ? ' pulse' : '') + '"' : '') + '>' + f + '</li>').join("");
+  $("cnt").textContent = r.length;
+  $("hist").innerHTML = r.length
+    ? r.map(x => '<li><b>' + x.fechaAnterior + ' → ' + x.nuevaFecha + '</b><br>Renovado el ' + x.fechaRenovacion + '</li>').reverse().join("")
+    : '<li class="empty">Aún no hay renovaciones. Elige una fecha y renueva.</li>';
+  $("inbox").innerHTML = estudiante.bandeja.length
+    ? estudiante.bandeja.map(n => '<li>' + n.mensaje + '<small>' + n.hora + ' · ' + estudiante.correo + '</small></li>').join("")
+    : '<li class="empty">Sin notificaciones.</li>';
+  $("nueva").min = prestamo.fechaPrevista;
+}
+
+function mensaje(texto, tipo) { const m = $("msg"); m.textContent = texto; m.className = "msg " + tipo; }
+
+$("renovar").addEventListener("click", () => {
+  try {
+    prestamo.renovar($("nueva").value);
+    estudiante.notificar("Su préstamo fue renovado hasta el " + prestamo.fechaPrevista + ".");
+    mensaje("Préstamo renovado. Nueva fecha: " + prestamo.fechaPrevista + ".", "ok");
+    $("nueva").value = "";
+    pintar(true);
+  } catch (e) {
+    mensaje("Renovación rechazada. " + e.message + " El préstamo no cambió.", "err");
+  }
+});
+$("reset").addEventListener("click", iniciar);
+iniciar();
+</script>
+</body>
+</html>
